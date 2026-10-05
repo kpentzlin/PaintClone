@@ -67,7 +67,9 @@ INT_PTR CALLBACK ResizeDlgProc(HWND dlg, UINT msg, WPARAM wp, LPARAM) {
         SetDlgItemTextW(dlg, IDC_SK_H, L"0");
         SetDlgItemTextW(dlg, IDC_SK_V, L"0");
         rs.updating = false;
-        return TRUE;
+        SetFocus(GetDlgItem(dlg, IDC_RS_H));
+        SendDlgItemMessageW(dlg, IDC_RS_H, EM_SETSEL, 0, -1);
+        return FALSE;
     case WM_COMMAND: {
         int id = LOWORD(wp), code = HIWORD(wp);
         if ((id == IDC_RS_H || id == IDC_RS_V) && code == EN_CHANGE) {
@@ -194,7 +196,9 @@ INT_PTR CALLBACK AttribDlgProc(HWND dlg, UINT msg, WPARAM wp, LPARAM) {
         atUnit = 2;
         CheckRadioButton(dlg, IDC_AT_INCH, IDC_AT_PX, IDC_AT_PX);
         AttribShow(dlg);
-        return TRUE;
+        SetFocus(GetDlgItem(dlg, IDC_AT_W));
+        SendDlgItemMessageW(dlg, IDC_AT_W, EM_SETSEL, 0, -1);
+        return FALSE;
     }
     case WM_COMMAND: {
         int id = LOWORD(wp);

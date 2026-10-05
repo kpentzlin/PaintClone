@@ -1130,7 +1130,7 @@ void PaintCanvas(HWND hwnd, HDC hdc) {
 
     // Gitternetz
     if (g.showGrid && g.zoom >= 4.0) {
-        HPEN pen = CreatePen(PS_SOLID, 1, RGB(128, 128, 128));
+        HPEN pen = CreatePen(PS_SOLID, 1, RGB(205, 205, 205));
         HGDIOBJ op = SelectObject(dc, pen);
         int ix0 = std::max(0, (int)std::floor(ImgXf(0)));
         int ix1 = std::min(src.w, (int)std::ceil(ImgXf(cw)) + 1);

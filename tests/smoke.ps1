@@ -263,6 +263,166 @@ Shot "rueckgaengig"
 for ($i = 0; $i -lt 6; $i++) { Keys "^y" }
 Alive
 
+
+# Werkzeugoptionen aller Werkzeuge als Bildstreifen
+Step "Werkzeugoptionen"
+$strip = New-Object System.Drawing.Bitmap (17 * 66), 520
+$sg = [System.Drawing.Graphics]::FromImage($strip)
+for ($t = 0; $t -lt 17; $t++) {
+    Tool $t
+    Start-Sleep -Milliseconds 250
+    $o = ScreenPt $script:tb 0 0
+    $sg.CopyFromScreen($o.X, $o.Y, $t * 66, 0, (New-Object System.Drawing.Size 64, 520))
+}
+$script:n++
+$strip.Save((Join-Path $shots ("{0:D2}_werkzeugoptionen.png" -f $script:n)), [System.Drawing.Imaging.ImageFormat]::Png)
+$sg.Dispose(); $strip.Dispose()
+Keys "^n"
+Start-Sleep -Seconds 1
+Keys "n"
+Start-Sleep -Milliseconds 500
+Alive
+
+# Optionsbereich: Zellen (logische Pixel ab y = 265)
+function Opt([int]$x, [int]$y) { Click $script:tb $x $y }
+
+Step "Pinselformen"
+Tool 7
+for ($r = 0; $r -lt 4; $r++) {
+    for ($c = 0; $c -lt 3; $c++) {
+        Opt (6 + $c * 16 + 8) (265 + $r * 16 + 8)
+        $x = 20 + ($r * 3 + $c) * 60
+        Drag $script:cv (Img $x) (Img 20) (Img ($x + 40)) (Img 60)
+    }
+}
+Alive
+
+Step "Formen-Galerie"
+PaletteColor 21 -Right
+Tool 16
+Opt 30 373
+$shapesAt = @(0, 3, 6, 9, 11, 13, 14, 15, 16, 17)
+$k = 0
+foreach ($i in $shapesAt) {
+    Opt (6 + ($i % 3) * 16 + 8) (265 + [math]::Floor($i / 3) * 16 + 8)
+    $x = 20 + ($k % 5) * 110
+    $y = 90 + [math]::Floor($k / 5) * 100
+    Drag $script:cv (Img $x) (Img $y) (Img ($x + 90)) (Img ($y + 80))
+    $k++
+}
+Alive
+
+Step "Fuellarten Rechteck und Ellipse"
+Tool 12
+Opt 31 (265 + 18 + 9)
+Drag $script:cv (Img 580) (Img 90) (Img 680) (Img 160)
+Tool 14
+Opt 31 (265 + 36 + 9)
+Drag $script:cv (Img 580) (Img 190) (Img 680) (Img 260)
+Tool 15
+Opt 31 (265 + 18 + 9)
+Opt 31 (265 + 54 + 4 * 12 + 6)
+Drag $script:cv (Img 700) (Img 90) (Img 790) (Img 160)
+Alive
+
+Step "Pipette und Radierer"
+Tool 4
+Click $script:cv (Img 620) (Img 120)
+Tool 6
+Drag $script:cv (Img 700) (Img 200) (Img 790) (Img 260)
+Tool 2
+Opt 31 (265 + 3 * 18 + 9)
+Drag $script:cv (Img 20) (Img 30) (Img 300) (Img 50)
+Shot "formen_pinsel_radierer"
+Alive
+
+Step "Text deckend"
+Tool 9
+Opt 31 278
+PaletteColor 17 -Right
+Drag $script:cv (Img 20) (Img 300) (Img 260) (Img 330)
+Keys "Deckender Text"
+Click $script:cv (Img 600) (Img 560)
+Tool 9
+Opt 31 304
+Alive
+
+Step "Lupe"
+Tool 5
+Click $script:cv (Img 100) (Img 100)
+Shot "lupe_200"
+Click $script:cv 200 200 -Right
+Alive
+
+Step "Leinwand ziehen"
+Keys "^{PGDN}"
+Tool 6
+Drag $script:cv (6 + 400 + 2) (6 + 300 + 2) (6 + 450) (6 + 330)
+Shot "leinwand_vergroessert"
+Keys "^0"
+Alive
+
+Step "Groesse aendern 50 Prozent"
+Keys "^w"
+Keys "50"
+Keys "{ENTER}"
+Shot "verkleinert_50"
+Keys "^z"
+Step "Neigen"
+Keys "^w"
+Keys "%o"
+Keys "20"
+Keys "{ENTER}"
+Shot "geneigt"
+Keys "^z"
+Alive
+
+Step "Attribute aendern"
+Keys "^e"
+Keys "%b"
+Keys "640"
+Keys "%h"
+Keys "480"
+Keys "{ENTER}"
+Shot "attribute_640x480"
+Keys "^z"
+Alive
+
+Step "Menues"
+Keys "%d"
+Shot "menue_datei"
+Keys "{ESC}{ESC}"
+Keys "%i"
+Shot "menue_bild"
+Keys "{ESC}{ESC}"
+Keys "%a"
+Shot "menue_ansicht"
+Keys "{ESC}{ESC}"
+Alive
+
+Step "Farbdialog und Info"
+$c = ScreenPt $script:pal (46 + 3 * 18 + 8) (5 + 8)
+[U]::SetCursorPos($c.X, $c.Y) | Out-Null
+[U]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero); [U]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+Start-Sleep -Milliseconds 60
+[U]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero); [U]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+Start-Sleep -Seconds 1
+Shot "farbdialog"
+Keys "{ESC}"
+Keys "{F1}"
+Shot "info"
+Keys "{ESC}"
+Alive
+
+Step "Drucken"
+Keys "^p"
+Start-Sleep -Seconds 2
+Shot "drucken"
+Keys "{ESC}"
+Start-Sleep -Seconds 1
+Keys "{ESC}"
+Alive
+
 # Speichern unter / Neu / Öffnen
 Step "Speichern unter / Neu / Öffnen"
 Alive

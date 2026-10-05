@@ -33,6 +33,10 @@ jobs:
           exit $code
       - name: Tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PaintClone-x64
+          path: build/Release/PaintClone.exe
       - name: Oberflächentest
         shell: pwsh
         run: ./tests/smoke.ps1 -Exe build/Release/PaintClone.exe
@@ -51,7 +55,3 @@ jobs:
           git add *.png
           git commit -m "Bildschirmfotos ${{ github.sha }}"
           git push -f origin ci-screens
-      - uses: actions/upload-artifact@v4
-        with:
-          name: PaintClone-x64
-          path: build/Release/PaintClone.exe
