@@ -103,6 +103,14 @@ INT_PTR CALLBACK ResizeDlgProc(HWND dlg, UINT msg, WPARAM wp, LPARAM) {
                 return TRUE;
             }
             bool percent = IsDlgButtonChecked(dlg, IDC_RS_PERCENT) == BST_CHECKED;
+            if (!std::isfinite(h) || !std::isfinite(v) || !std::isfinite(sh) || !std::isfinite(sv)) {
+                MsgBox(dlg, L"Bitte geben Sie gültige Zahlen ein.", MB_ICONWARNING);
+                return TRUE;
+            }
+            if (!percent && (h > MAX_DIM || v > MAX_DIM)) {
+                MsgBox(dlg, L"Die angegebene Größe ist zu groß.", MB_ICONWARNING);
+                return TRUE;
+            }
             if (percent && (h > 5000 || v > 5000)) {
                 MsgBox(dlg, L"Bitte geben Sie einen Prozentwert zwischen 1 und 5000 ein.", MB_ICONWARNING);
                 return TRUE;
@@ -146,7 +154,10 @@ void AttribShow(HWND dlg) {
 
 bool AttribRead(HWND dlg) {
     double w, h;
-    if (!ParseNumber(dlg, IDC_AT_W, w) || !ParseNumber(dlg, IDC_AT_H, h) || w <= 0 || h <= 0) return false;
+    if (!ParseNumber(dlg, IDC_AT_W, w) || !ParseNumber(dlg, IDC_AT_H, h) || !std::isfinite(w) ||
+        !std::isfinite(h) || w <= 0 || h <= 0)
+        return false;
+    if (FromUnit(w, atUnit) > MAX_DIM || FromUnit(h, atUnit) > MAX_DIM) return false;
     atW = std::max(1.0, std::round(FromUnit(w, atUnit)));
     atH = std::max(1.0, std::round(FromUnit(h, atUnit)));
     return true;
@@ -290,6 +301,11 @@ INT_PTR CALLBACK AboutDlgProc(HWND dlg, UINT msg, WPARAM wp, LPARAM) {
             return TRUE;
         }
         break;
+    case WM_DESTROY: {
+        HICON ic = (HICON)SendDlgItemMessageW(dlg, IDC_AB_ICON, STM_GETICON, 0, 0);
+        if (ic) DestroyIcon(ic);
+        break;
+    }
     }
     return FALSE;
 }
@@ -322,14 +338,18 @@ LRESULT CALLBACK FullProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
+    case WM_CLOSE:
+        // Hauptfenster vor dem Schließen aktivieren, damit Windows nicht zu einer anderen Anwendung wechselt
+        EnableWindow(g.hMain, TRUE);
+        SetForegroundWindow(g.hMain);
         DestroyWindow(hwnd);
         return 0;
     case WM_DESTROY:
         EnableWindow(g.hMain, TRUE);
-        SetForegroundWindow(g.hMain);
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
@@ -371,7 +391,7 @@ void DoPageSetup(HWND owner) {
     psd.hwndOwner = owner;
     psd.hDevMode = g.hDevMode;
     psd.hDevNames = g.hDevNames;
-    psd.Flags = PSD_INTHOUSANDTHSOFINCHES | PSD_MARGINS;
+    psd.Flags = PSD_INHUNDREDTHSOFMILLIMETERS | PSD_MARGINS;
     psd.rtMargin = g.printMargins;
     if (PageSetupDlgW(&psd)) {
         g.hDevMode = psd.hDevMode;
@@ -404,10 +424,10 @@ void DoPrint(HWND owner) {
             int pw = GetDeviceCaps(dc, PHYSICALWIDTH), ph = GetDeviceCaps(dc, PHYSICALHEIGHT);
             int hres = GetDeviceCaps(dc, HORZRES), vres = GetDeviceCaps(dc, VERTRES);
             // Rand in Druckerpixel, relativ zum bedruckbaren Bereich
-            int left = MulDiv(g.printMargins.left, dpix, 1000) - offx;
-            int top = MulDiv(g.printMargins.top, dpiy, 1000) - offy;
-            int right = pw - MulDiv(g.printMargins.right, dpix, 1000) - offx;
-            int bottom = ph - MulDiv(g.printMargins.bottom, dpiy, 1000) - offy;
+            int left = MulDiv(g.printMargins.left, dpix, 2540) - offx;
+            int top = MulDiv(g.printMargins.top, dpiy, 2540) - offy;
+            int right = pw - MulDiv(g.printMargins.right, dpix, 2540) - offx;
+            int bottom = ph - MulDiv(g.printMargins.bottom, dpiy, 2540) - offy;
             left = std::max(0, left);
             top = std::max(0, top);
             right = std::min(hres, right);
@@ -416,7 +436,7 @@ void DoPrint(HWND owner) {
             double w = g.img.w * (double)dpix / 96.0, h = g.img.h * (double)dpiy / 96.0;
             double sc = std::min(1.0, std::min(aw / w, ah / h));
             int dw = std::max(1, (int)(w * sc)), dh = std::max(1, (int)(h * sc));
-            DrawPixmap(dc, g.img, left, top, dw, dh, 0, 0, g.img.w, g.img.h, false);
+            DrawPixmap(dc, g.img, left, top, dw, dh, 0, 0, g.img.w, g.img.h, sc < 1.0);
             EndPage(dc);
         }
         EndDoc(dc);

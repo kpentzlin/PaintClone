@@ -108,6 +108,7 @@ struct App {
     HFONT uiFont = nullptr;
 
     Pixmap img;
+    uint64_t imgVersion = 0;  // wird bei jeder Bildänderung erhöht
     wstring filePath;
     bool dirty = false;
 
@@ -143,7 +144,7 @@ struct App {
     std::vector<Pixmap> undo, redo;
 
     HGLOBAL hDevMode = nullptr, hDevNames = nullptr;
-    RECT printMargins = {750, 750, 750, 750}; // 1/1000 Zoll
+    RECT printMargins = {2000, 2000, 2000, 2000}; // 1/100 mm
 };
 
 extern App g;

@@ -31,7 +31,7 @@ BEGIN
         MENUITEM "Seite ein&richten...",             ID_FILE_PAGESETUP
         MENUITEM "&Drucken...\tStrg+P",              ID_FILE_PRINT
         MENUITEM SEPARATOR
-        POPUP "Als &Desktophintergrund"
+        POPUP "Als Desktop&hintergrund"
         BEGIN
             MENUITEM "&Füllen",                      ID_FILE_WP_FILL
             MENUITEM "&Kacheln",                     ID_FILE_WP_TILE
@@ -92,7 +92,7 @@ BEGIN
         MENUITEM "&Attribute...\tStrg+E",            ID_IMAGE_ATTRIBUTES
         MENUITEM "Bild &löschen\tStrg+Umschalt+N",   ID_IMAGE_CLEAR
         MENUITEM SEPARATOR
-        MENUITEM "&Undurchsichtig zeichnen",         ID_IMAGE_OPAQUE
+        MENUITEM "Undurchsichtig &zeichnen",         ID_IMAGE_OPAQUE
     END
     POPUP "&Farben"
     BEGIN
@@ -191,7 +191,7 @@ BEGIN
     LTEXT           "", IDC_AT_RES, 90, 46, 163, 9
     GROUPBOX        "Einheiten", -1, 7, 62, 246, 30
     AUTORADIOBUTTON "&Zoll", IDC_AT_INCH, 15, 75, 60, 10, WS_GROUP | WS_TABSTOP
-    AUTORADIOBUTTON "&Zentimeter", IDC_AT_CM, 80, 75, 70, 10
+    AUTORADIOBUTTON "Zenti&meter", IDC_AT_CM, 80, 75, 70, 10
     AUTORADIOBUTTON "&Pixel", IDC_AT_PX, 160, 75, 60, 10
     LTEXT           "&Breite:", -1, 7, 104, 40, 9, WS_GROUP
     EDITTEXT        IDC_AT_W, 50, 102, 60, 13, ES_AUTOHSCROLL

@@ -19,6 +19,7 @@ bool useScratch = false;
 
 HDC memDC = nullptr;
 HBITMAP memBmp = nullptr;
+HGDIOBJ memOldBmp = nullptr;
 int memW = 0, memH = 0;
 
 enum DragKind {
@@ -56,6 +57,8 @@ struct SelState {
     Pixmap pix;                 // schwebender Inhalt (Alpha = Maske)
     std::vector<uint8_t> mask;  // Freihandmaske (nicht schwebend), leer = Rechteck
     std::vector<POINT> lasso;   // Umriss der Freihandauswahl
+    bool fromPaste = false;
+    size_t undoMark = 0;        // Größe des Undo-Stapels vor dem Einfügen
 } sel;
 
 struct TextState {
@@ -68,6 +71,7 @@ struct TextState {
 } text;
 
 int resizeW = 0, resizeH = 0;
+Tool lastDownTool = T_COUNT;
 POINT hoverImg{0, 0};
 bool hoverValid = false;
 std::mt19937 rng(12345);
@@ -79,7 +83,14 @@ int Margin() { return S(6); }
 
 double ImgXf(int sx) { return (sx - Margin() + scrollX) / g.zoom; }
 double ImgYf(int sy) { return (sy - Margin() + scrollY) / g.zoom; }
-POINT ToImg(POINT s) { return {(LONG)std::floor(ImgXf(s.x)), (LONG)std::floor(ImgYf(s.y))}; }
+// Exakte Umkehrung der Darstellung (Pixel i liegt bei floor(i·z) .. floor((i+1)·z) - 1)
+LONG ScreenToPixel(int off) {
+    if (g.zoom >= 1.0) return (LONG)std::ceil((off + 1) / g.zoom - 1e-9) - 1;
+    return (LONG)std::floor(off / g.zoom + 1e-9);
+}
+POINT ToImg(POINT s) {
+    return {ScreenToPixel(s.x - Margin() + scrollX), ScreenToPixel(s.y - Margin() + scrollY)};
+}
 int ScrX(double ix) { return (int)std::floor(ix * g.zoom + 1e-7) + Margin() - scrollX; }
 int ScrY(double iy) { return (int)std::floor(iy * g.zoom + 1e-7) + Margin() - scrollY; }
 
@@ -257,6 +268,52 @@ void DrawPreviewInto(Pixmap& t) {
     }
 }
 
+RECT EmptyRect() { return {0, 0, 0, 0}; }
+
+void AddBounds(RECT& u, RECT r) {
+    if (r.right <= r.left || r.bottom <= r.top) return;
+    if (u.right <= u.left || u.bottom <= u.top) u = r;
+    else UnionRect(&u, &u, &r);
+}
+
+RECT InclToExcl(RECT r, int pad) {
+    return {r.left - pad, r.top - pad, r.right + 1 + pad, r.bottom + 1 + pad};
+}
+
+RECT PointsBounds(std::initializer_list<POINT> pts, int pad) {
+    LONG x0 = LONG_MAX, y0 = LONG_MAX, x1 = LONG_MIN, y1 = LONG_MIN;
+    for (auto& p : pts) {
+        x0 = std::min(x0, p.x); y0 = std::min(y0, p.y);
+        x1 = std::max(x1, p.x); y1 = std::max(y1, p.y);
+    }
+    return InclToExcl({x0, y0, x1, y1}, pad);
+}
+
+// Bereich, den die aktuelle Vorschau verändert (Bildkoordinaten, exklusiv, geclippt)
+RECT PreviewBounds() {
+    RECT u = EmptyRect();
+    int pad = g.lineWidth + 3;
+    if (sel.floating) AddBounds(u, sel.rc);
+    if (drag.kind == DK_LINE) {
+        POINT b = drag.shift ? ConstrainLine(drag.start, drag.cur) : drag.cur;
+        AddBounds(u, PointsBounds({drag.start, b}, pad));
+    } else if (drag.kind == DK_SHAPE) {
+        AddBounds(u, InclToExcl(CurrentShapeRect(), pad));
+    }
+    if (curve.phase > 0 || drag.kind == DK_CURVE)
+        AddBounds(u, PointsBounds({curve.p0, curve.c1, curve.c2, curve.p3}, pad));
+    if (poly.active) {
+        for (auto& p : poly.pts) AddBounds(u, PointsBounds({p}, pad));
+    }
+    RECT img = {0, 0, g.img.w, g.img.h};
+    RECT r;
+    if (!IntersectRect(&r, &u, &img)) return EmptyRect();
+    return r;
+}
+
+uint64_t scratchVersion = UINT64_MAX;
+RECT lastBounds = {0, 0, 0, 0};
+
 bool NeedsPreview() {
     return sel.floating || drag.kind == DK_LINE || drag.kind == DK_SHAPE || drag.kind == DK_CURVE ||
            curve.phase > 0 || poly.active;
@@ -265,12 +322,28 @@ bool NeedsPreview() {
 void RebuildPreview() {
     if (!NeedsPreview()) {
         useScratch = false;
+        scratchVersion = UINT64_MAX;
         return;
     }
-    scratch.w = g.img.w;
-    scratch.h = g.img.h;
-    scratch.px = g.img.px;
+    RECT nb = PreviewBounds();
+    bool full = scratchVersion != g.imgVersion || scratch.w != g.img.w || scratch.h != g.img.h ||
+                scratch.px.size() != g.img.px.size();
+    if (full) {
+        scratch.w = g.img.w;
+        scratch.h = g.img.h;
+        scratch.px = g.img.px;
+    } else {
+        // nur den zuvor und jetzt betroffenen Bereich aus dem Bild wiederherstellen
+        RECT r = lastBounds;
+        AddBounds(r, nb);
+        for (int y = r.top; y < r.bottom; ++y) {
+            size_t o = (size_t)y * g.img.w;
+            std::copy(g.img.px.begin() + o + r.left, g.img.px.begin() + o + r.right, scratch.px.begin() + o + r.left);
+        }
+    }
     DrawPreviewInto(scratch);
+    lastBounds = nb;
+    scratchVersion = g.imgVersion;
     useScratch = true;
 }
 
@@ -424,6 +497,8 @@ void GrowTextBox() {
     if (need > RH(text.rc)) {
         text.rc.bottom = text.rc.top + need;
         PositionTextEdit();
+        int first = (int)SendMessageW(text.edit, EM_GETFIRSTVISIBLELINE, 0, 0);
+        if (first > 0) SendMessageW(text.edit, EM_LINESCROLL, 0, -first);
         Canvas_Invalidate();
     }
 }
@@ -438,7 +513,22 @@ LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PT
         return 0;
     }
     if (msg == WM_CHAR && wp == 1) return 0;  // Strg+A ohne Piepton
-    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hwnd, EditSubclass, 1);
+    if (msg == WM_NCDESTROY) {
+        RemoveWindowSubclass(hwnd, EditSubclass, 1);
+        return DefSubclassProc(hwnd, msg, wp, lp);
+    }
+    if (!g.textOpaque) {
+        // Im transparenten Modus löscht das EDIT seinen Hintergrund nicht selbst
+        // (z. B. beim Aufheben einer Markierung) – daher vollständig neu zeichnen.
+        DWORD s0 = 0, e0 = 0, s1 = 0, e1 = 0;
+        SendMessageW(hwnd, EM_GETSEL, (WPARAM)&s0, (LPARAM)&e0);
+        LRESULT r = DefSubclassProc(hwnd, msg, wp, lp);
+        if (IsWindow(hwnd)) {
+            SendMessageW(hwnd, EM_GETSEL, (WPARAM)&s1, (LPARAM)&e1);
+            if (s0 != s1 || e0 != e1) InvalidateRect(hwnd, nullptr, TRUE);
+        }
+        return r;
+    }
     return DefSubclassProc(hwnd, msg, wp, lp);
 }
 
@@ -478,8 +568,10 @@ void CommitText() {
 
 void DiscardText() {
     if (!text.active) return;
+    bool hadFocus = GetFocus() == text.edit;
     DestroyTextEdit();
     text.active = false;
+    if (hadFocus) SetFocus(g.hCanvas);
 }
 
 void StartTextBox(RECT r) {
@@ -597,6 +689,7 @@ void EndDrag(bool cancel) {
             DrawStraightLine(g.img, drag.start, b, g.lineWidth, Primary(drag.button), g.smoothing);
             MarkDirty();
         }
+        UpdateStatusSel(0, 0, false);
         break;
     case DK_SHAPE:
         if (!cancel) {
@@ -620,9 +713,13 @@ void EndDrag(bool cancel) {
         }
         break;
     case DK_POLY:
-        if (cancel) poly = PolyState();
+        if (cancel) {
+            if (poly.pts.size() > 2) poly.pts.pop_back();
+            else poly = PolyState();
+        }
         break;
     case DK_SELRECT:
+        if (cancel) UpdateStatusSel(0, 0, false);
         if (!cancel) {
             RECT r = NormRectIncl(drag.start, drag.cur);
             r.right += 1;
@@ -676,6 +773,8 @@ void EndDrag(bool cancel) {
             Canvas_CommitAll();
             ReplaceImage(ExtendCanvas(g.img, resizeW, resizeH, RGBtoPX(g.bg)));
         }
+        if (sel.active) UpdateStatusSel(RW(sel.rc), RH(sel.rc), true);
+        else UpdateStatusSel(0, 0, false);
         break;
     case DK_TEXTRECT:
         if (!cancel) {
@@ -713,6 +812,7 @@ void OnButtonDown(HWND hwnd, int button, POINT s, WPARAM wp) {
         Canvas_Invalidate();
         return;
     }
+    lastDownTool = g.tool;
     POINT p = ToImg(s);
     drag = DragState();
     drag.button = button;
@@ -746,12 +846,16 @@ void OnButtonDown(HWND hwnd, int button, POINT s, WPARAM wp) {
         ApplyPaintSegment(p, p);
         if (g.tool == T_AIRBRUSH) SetTimer(hwnd, TIMER_AIR, 25, nullptr);
         break;
-    case T_FILL:
-        PushUndo();
-        if (FloodFill(g.img, p.x, p.y, RGBtoPX(Primary(button)))) MarkDirty();
-        else DropLastUndo();
-        Canvas_Invalidate();
+    case T_FILL: {
+        uint32_t c = RGBtoPX(Primary(button));
+        if (g.img.in(p.x, p.y) && g.img.at(p.x, p.y) != c) {
+            PushUndo();
+            FloodFill(g.img, p.x, p.y, c);
+            MarkDirty();
+            Canvas_Invalidate();
+        }
         return;
+    }
     case T_PICKER:
         drag.kind = DK_PICK;
         break;
@@ -798,7 +902,7 @@ void OnButtonDown(HWND hwnd, int button, POINT s, WPARAM wp) {
             POINT f = poly.pts.front();
             int tol = std::max(2, (int)std::ceil(S(4) / g.zoom));
             if (poly.pts.size() >= 3 && std::abs(p.x - f.x) <= tol && std::abs(p.y - f.y) <= tol) {
-                poly.pts.back() = f;
+                poly.pts.push_back(f);
                 FinishPolygon();
                 return;
             }
@@ -990,11 +1094,13 @@ void PaintCanvas(HWND hwnd, HDC hdc) {
     int cw = std::max<int>(1, cr.right), ch = std::max<int>(1, cr.bottom);
     if (!memDC) memDC = CreateCompatibleDC(hdc);
     if (!memBmp || memW < cw || memH < ch) {
-        if (memBmp) DeleteObject(memBmp);
         memW = std::max(cw, memW);
         memH = std::max(ch, memH);
-        memBmp = CreateCompatibleBitmap(hdc, memW, memH);
-        SelectObject(memDC, memBmp);
+        HBITMAP nb = CreateCompatibleBitmap(hdc, memW, memH);
+        HGDIOBJ prev = SelectObject(memDC, nb);
+        if (!memOldBmp) memOldBmp = prev;
+        if (memBmp) DeleteObject(memBmp);
+        memBmp = nb;
     }
     HDC dc = memDC;
     HBRUSH wb = CreateSolidBrush(kWorkspaceColor);
@@ -1172,6 +1278,7 @@ LRESULT CALLBACK CanvasProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_SIZE:
         Canvas_UpdateScroll();
         PositionTextEdit();
+        Canvas_Invalidate();
         return 0;
     case WM_LBUTTONDOWN:
         OnButtonDown(hwnd, 0, {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}, wp);
@@ -1180,19 +1287,17 @@ LRESULT CALLBACK CanvasProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         OnButtonDown(hwnd, 1, {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}, wp);
         return 0;
     case WM_LBUTTONDBLCLK:
-        if (g.tool == T_POLYGON && poly.active && drag.kind == DK_NONE) {
-            FinishPolygon();
+    case WM_RBUTTONDBLCLK: {
+        int button = msg == WM_LBUTTONDBLCLK ? 0 : 1;
+        // Werkzeug hat beim ersten Klick gewechselt (z. B. Pipette): zweiten Klick ignorieren
+        if (g.tool != lastDownTool) return 0;
+        if (g.tool == T_POLYGON && drag.kind == DK_NONE) {
+            if (poly.active) FinishPolygon();
             return 0;
         }
-        OnButtonDown(hwnd, 0, {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}, wp);
+        OnButtonDown(hwnd, button, {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}, wp);
         return 0;
-    case WM_RBUTTONDBLCLK:
-        if (g.tool == T_POLYGON && poly.active && drag.kind == DK_NONE) {
-            FinishPolygon();
-            return 0;
-        }
-        OnButtonDown(hwnd, 1, {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}, wp);
-        return 0;
+    }
     case WM_LBUTTONUP:
         OnButtonUp(0);
         return 0;
@@ -1343,8 +1448,10 @@ LRESULT CALLBACK CanvasProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         break;
     case WM_DESTROY:
+        if (memDC && memOldBmp) SelectObject(memDC, memOldBmp);
         if (memBmp) DeleteObject(memBmp);
         if (memDC) DeleteDC(memDC);
+        memOldBmp = nullptr;
         memBmp = nullptr;
         memDC = nullptr;
         DestroyTextEdit();
@@ -1467,8 +1574,15 @@ void Canvas_CommitAll() {
 }
 
 bool Canvas_CancelAll() {
-    bool pendingOnly = (poly.active || curve.phase > 0) && !sel.floating && drag.kind == DK_NONE;
-    if (drag.kind != DK_NONE) EndDrag(true);
+    if (drag.kind != DK_NONE) {
+        // laufenden Ziehvorgang abbrechen; das zählt bereits als „Rückgängig“
+        EndDrag(true);
+        if (g.tool == T_CURVE) curve = CurveState();
+        RebuildPreview();
+        Canvas_Invalidate();
+        return true;
+    }
+    bool pendingOnly = (poly.active || curve.phase > 0) && !sel.floating;
     DiscardText();
     poly = PolyState();
     curve = CurveState();
@@ -1528,6 +1642,7 @@ void Canvas_Copy() {
 void Canvas_DeleteSelection() {
     if (!sel.active) return;
     if (sel.floating) {
+        if (sel.fromPaste && g.undo.size() == sel.undoMark + 1) DropLastUndo();
         ClearSelectionState();
         MarkDirty();
     } else {
@@ -1571,6 +1686,7 @@ void Canvas_PastePixmap(Pixmap&& p) {
         }
     }
     if (g.tool != T_RECTSEL && g.tool != T_FREESEL) SetTool(T_RECTSEL);
+    size_t mark = g.undo.size();
     PushUndo();
     int ix = std::max(0, (int)std::ceil(ImgXf(0)));
     int iy = std::max(0, (int)std::ceil(ImgYf(0)));
@@ -1579,6 +1695,8 @@ void Canvas_PastePixmap(Pixmap&& p) {
     sel = SelState();
     sel.active = true;
     sel.floating = true;
+    sel.fromPaste = true;
+    sel.undoMark = mark;
     MakeOpaque(p);
     sel.rc = {ix, iy, ix + p.w, iy + p.h};
     sel.pix = std::move(p);
@@ -1592,12 +1710,11 @@ void Canvas_Crop() {
     if (!sel.active) return;
     Pixmap c;
     Canvas_GetSelectionPixmap(c, true);
-    bool wasFloating = sel.floating;
-    ClearSelectionState();
-    if (wasFloating && !g.undo.empty()) {
-        g.img = std::move(g.undo.back());
-        g.undo.pop_back();
+    if (sel.floating) {
+        // Rückgängig soll später das zuletzt sichtbare Bild zeigen (Auswahl eingefügt)
+        ComposeFloating(g.img);
     }
+    ClearSelectionState();
     ReplaceImage(std::move(c));
     RebuildPreview();
 }
@@ -1619,6 +1736,7 @@ static Pixmap ApplyTransform(const Pixmap& p, Transform t) {
 }
 
 void Canvas_Transform(Transform t) {
+    if (drag.kind != DK_NONE) EndDrag(drag.kind != DK_PAINT);
     CommitText();
     if (poly.active) FinishPolygon();
     if (curve.phase > 0) CommitCurve();
@@ -1638,6 +1756,7 @@ void Canvas_Transform(Transform t) {
 }
 
 void Canvas_ResizeSkew(bool percent, double h, double v, double skH, double skV) {
+    if (drag.kind != DK_NONE) EndDrag(drag.kind != DK_PAINT);
     CommitText();
     if (poly.active) FinishPolygon();
     if (curve.phase > 0) CommitCurve();
@@ -1709,7 +1828,7 @@ void Canvas_OnColorsChanged() {
         RebuildTextBrush();
         InvalidateRect(text.edit, nullptr, TRUE);
     }
-    if (sel.floating && g.transparentSel) RebuildPreview();
+    RebuildPreview();
     Canvas_Invalidate();
 }
 

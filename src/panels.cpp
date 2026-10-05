@@ -390,7 +390,7 @@ LRESULT CALLBACK ToolboxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         for (auto& c : cells)
             if (PtInRect(&c.rc, p)) {
                 ApplyCell(c);
-                Canvas_Invalidate();
+                Canvas_OnColorsChanged();  // Vorschau mit neuen Optionen neu aufbauen
                 break;
             }
         InvalidateRect(hwnd, nullptr, FALSE);
@@ -524,10 +524,17 @@ LRESULT CALLBACK PaletteProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 SetColors(c, g.bg);
             }
         } else {
-            RECT a = FgRect();
-            if (PtInRect(&a, p)) {
-                COLORREF c = g.fg;
-                if (EditColor(g.hMain, c)) SetColors(c, g.bg);
+            RECT a = FgRect(), b = BgRect();
+            RECT u;
+            UnionRect(&u, &a, &b);
+            if (PtInRect(&u, p)) {
+                SetColors(g.bg, g.fg);  // Tausch durch den ersten Klick rückgängig machen
+                bool editFg = PtInRect(&a, p) != FALSE;
+                COLORREF c = editFg ? g.fg : g.bg;
+                if (EditColor(g.hMain, c)) {
+                    if (editFg) SetColors(c, g.bg);
+                    else SetColors(g.fg, c);
+                }
             }
         }
         InvalidateRect(hwnd, nullptr, FALSE);
@@ -693,6 +700,11 @@ LRESULT CALLBACK FontBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (id == IDC_FB_SIZE && (code == CBN_SELCHANGE || code == CBN_EDITCHANGE || code == CBN_KILLFOCUS))
             apply = true;
         if (id >= IDC_FB_BOLD && id <= IDC_FB_STRIKE && code == BN_CLICKED) apply = true;
+        if ((id == IDC_FB_FONT || id == IDC_FB_SIZE) && code == CBN_CLOSEUP) {
+            // Liste zugeklappt: Auswahl übernehmen und zurück ins Textfeld
+            PostMessageW(hwnd, WM_APP + 1, 0, 0);
+            return 0;
+        }
         if (apply) {
             if (code == CBN_SELCHANGE || code == CBN_EDITCHANGE || code == CBN_KILLFOCUS) {
                 // Auswahl erst nach der Nachricht im Eingabefeld sichtbar
@@ -701,10 +713,14 @@ LRESULT CALLBACK FontBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 ApplyFontBar();
                 if (Canvas_IsTextActive() && Canvas_TextEdit()) SetFocus(Canvas_TextEdit());
             }
-            if (code == CBN_SELCHANGE && Canvas_IsTextActive() && Canvas_TextEdit()) SetFocus(Canvas_TextEdit());
+            (void)0;
         }
         return 0;
     }
+    case WM_APP + 1:
+        ApplyFontBar();
+        if (Canvas_IsTextActive() && Canvas_TextEdit()) SetFocus(Canvas_TextEdit());
+        return 0;
     case WM_DESTROY:
         for (HFONT* f : {&fbFontBold, &fbFontItalic, &fbFontUnder, &fbFontStrike})
             if (*f) {
@@ -901,6 +917,7 @@ bool Panels_Register() {
     wc.hInstance = g.hInst;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
 
+    wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = ToolboxProc;
     wc.lpszClassName = kToolboxClass;
     if (!RegisterClassExW(&wc)) return false;

@@ -141,11 +141,16 @@ bool LoadImageFile(const wstring& path, Pixmap& out, wstring& err) {
 
 bool SaveImageFile(const wstring& path, const Pixmap& p, wstring& err) {
     wstring ext = LowerExt(path);
-    const wchar_t* mime = L"image/png";
-    if (ext == L"bmp" || ext == L"dib") mime = L"image/bmp";
+    const wchar_t* mime = nullptr;
+    if (ext == L"png") mime = L"image/png";
+    else if (ext == L"bmp" || ext == L"dib") mime = L"image/bmp";
     else if (ext == L"jpg" || ext == L"jpeg" || ext == L"jpe" || ext == L"jfif") mime = L"image/jpeg";
     else if (ext == L"gif") mime = L"image/gif";
     else if (ext == L"tif" || ext == L"tiff") mime = L"image/tiff";
+    if (!mime) {
+        err = L"In diesem Dateiformat kann nicht gespeichert werden. Bitte wählen Sie PNG, BMP, JPEG, GIF oder TIFF.";
+        return false;
+    }
     CLSID clsid;
     if (!GetEncoderClsid(mime, &clsid)) {
         err = L"Für dieses Dateiformat ist kein Encoder verfügbar.";
@@ -182,7 +187,17 @@ bool SaveImageFile(const wstring& path, const Pixmap& p, wstring& err) {
               L"Schreibrechte vorhanden sind.";
         return false;
     }
-    if (!MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    bool replaced;
+    if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        // vorhandene Datei ersetzen und dabei Attribute/Berechtigungen erhalten
+        replaced = ReplaceFileW(path.c_str(), tmp.c_str(), nullptr, REPLACEFILE_IGNORE_MERGE_ERRORS, nullptr,
+                                nullptr) != FALSE;
+        if (!replaced)
+            replaced = MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+    } else {
+        replaced = MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_WRITE_THROUGH) != FALSE;
+    }
+    if (!replaced) {
         DeleteFileW(tmp.c_str());
         err = L"Die Datei konnte nicht ersetzt werden (eventuell schreibgeschützt oder in Benutzung).";
         return false;
@@ -238,9 +253,28 @@ bool CopyPixmapToClipboard(HWND hwnd, const Pixmap& p) {
     return true;
 }
 
+static bool IsImagePath(const wstring& path) {
+    wstring e = LowerExt(path);
+    const wchar_t* exts[] = {L"png", L"bmp", L"dib", L"jpg", L"jpeg", L"jpe", L"jfif", L"gif", L"tif", L"tiff", L"ico"};
+    return std::any_of(std::begin(exts), std::end(exts), [&](const wchar_t* k) { return e == k; });
+}
+
 bool ClipboardHasImage() {
-    return IsClipboardFormatAvailable(CF_BITMAP) || IsClipboardFormatAvailable(CF_DIB) ||
-           IsClipboardFormatAvailable(CF_DIBV5) || IsClipboardFormatAvailable(CF_HDROP);
+    if (IsClipboardFormatAvailable(CF_BITMAP) || IsClipboardFormatAvailable(CF_DIB) ||
+        IsClipboardFormatAvailable(CF_DIBV5))
+        return true;
+    if (!IsClipboardFormatAvailable(CF_HDROP) || !OpenClipboard(nullptr)) return false;
+    bool ok = false;
+    HDROP hd = (HDROP)GetClipboardData(CF_HDROP);
+    if (hd && DragQueryFileW(hd, 0xFFFFFFFF, nullptr, 0) > 0) {
+        UINT len = DragQueryFileW(hd, 0, nullptr, 0);
+        wstring path(len + 1, L'\0');
+        DragQueryFileW(hd, 0, &path[0], len + 1);
+        path.resize(len);
+        ok = IsImagePath(path);
+    }
+    CloseClipboard();
+    return ok;
 }
 
 bool PastePixmapFromClipboard(HWND hwnd, Pixmap& out) {

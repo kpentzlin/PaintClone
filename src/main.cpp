@@ -196,10 +196,10 @@ void LoadSettings() {
     }
 
     const wchar_t* S6 = L"Drucken";
-    g.printMargins.left = IniInt(f, S6, L"RandLinks", 750);
-    g.printMargins.top = IniInt(f, S6, L"RandOben", 750);
-    g.printMargins.right = IniInt(f, S6, L"RandRechts", 750);
-    g.printMargins.bottom = IniInt(f, S6, L"RandUnten", 750);
+    g.printMargins.left = std::clamp(IniInt(f, S6, L"RandLinksMM100", 2000), 0, 20000);
+    g.printMargins.top = std::clamp(IniInt(f, S6, L"RandObenMM100", 2000), 0, 20000);
+    g.printMargins.right = std::clamp(IniInt(f, S6, L"RandRechtsMM100", 2000), 0, 20000);
+    g.printMargins.bottom = std::clamp(IniInt(f, S6, L"RandUntenMM100", 2000), 0, 20000);
 }
 
 void SaveSettings() {
@@ -267,10 +267,10 @@ void SaveSettings() {
         IniPut(f, S5, key, g.recent[i]);
     }
     const wchar_t* S6 = L"Drucken";
-    IniPutInt(f, S6, L"RandLinks", g.printMargins.left);
-    IniPutInt(f, S6, L"RandOben", g.printMargins.top);
-    IniPutInt(f, S6, L"RandRechts", g.printMargins.right);
-    IniPutInt(f, S6, L"RandUnten", g.printMargins.bottom);
+    IniPutInt(f, S6, L"RandLinksMM100", g.printMargins.left);
+    IniPutInt(f, S6, L"RandObenMM100", g.printMargins.top);
+    IniPutInt(f, S6, L"RandRechtsMM100", g.printMargins.right);
+    IniPutInt(f, S6, L"RandUntenMM100", g.printMargins.bottom);
 }
 
 // ---------------------------------------------------------------------------
@@ -378,12 +378,17 @@ bool AskSavePath(HWND owner, wstring& path, const wchar_t* title, const wstring&
     ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_EXPLORER;
     if (!GetSaveFileNameW(&ofn)) return false;
     path = buf;
-    // Keine oder unbekannte Endung: Endung des gewählten Filters anhängen
+    // Keine oder nicht speicherbare Endung: Endung des gewählten Filters verwenden
     wstring e = PathFindExtensionW(path.c_str());
     for (auto& c : e) c = (wchar_t)towlower(c);
     const wchar_t* known[] = {L".png", L".bmp", L".dib", L".jpg", L".jpeg", L".jpe", L".jfif", L".gif", L".tif", L".tiff"};
+    const wchar_t* readOnly[] = {L".ico", L".cur", L".emf", L".wmf", L".exif"};
     bool ok = std::any_of(std::begin(known), std::end(known), [&](const wchar_t* k) { return e == k; });
-    if (!ok && ofn.nFilterIndex >= 1 && ofn.nFilterIndex <= 5) path += wstring(L".") + defExt[ofn.nFilterIndex - 1];
+    bool replace = std::any_of(std::begin(readOnly), std::end(readOnly), [&](const wchar_t* k) { return e == k; });
+    if (!ok && ofn.nFilterIndex >= 1 && ofn.nFilterIndex <= 5) {
+        if (replace) path.resize(path.size() - e.size());
+        path += wstring(L".") + defExt[ofn.nFilterIndex - 1];
+    }
     g.lastDir = DirOf(path);
     return true;
 }
@@ -405,16 +410,30 @@ bool SaveTo(const wstring& path) {
     return true;
 }
 
+bool IsSavableExt(const wstring& path) {
+    wstring e = PathFindExtensionW(path.c_str());
+    for (auto& c : e) c = (wchar_t)towlower(c);
+    const wchar_t* known[] = {L".png", L".bmp", L".dib", L".jpg", L".jpeg", L".jpe", L".jfif", L".gif", L".tif", L".tiff"};
+    return std::any_of(std::begin(known), std::end(known), [&](const wchar_t* k) { return e == k; });
+}
+
 bool DoSaveAs() {
     wstring sugg = g.filePath.empty() ? (g.lastDir.empty() ? L"Unbenannt.png" : g.lastDir + L"\\Unbenannt.png")
                                       : g.filePath;
+    if (!g.filePath.empty() && !IsSavableExt(sugg)) {
+        // z. B. .ico: als PNG vorschlagen
+        wchar_t buf[MAX_PATH * 4] = {};
+        wcsncpy_s(buf, sugg.c_str(), _TRUNCATE);
+        PathRenameExtensionW(buf, L".png");
+        sugg = buf;
+    }
     wstring path;
     if (!AskSavePath(g.hMain, path, L"Speichern unter", sugg)) return false;
     return SaveTo(path);
 }
 
 bool DoSave() {
-    if (g.filePath.empty()) return DoSaveAs();
+    if (g.filePath.empty() || !IsSavableExt(g.filePath)) return DoSaveAs();
     return SaveTo(g.filePath);
 }
 
@@ -432,6 +451,7 @@ bool ConfirmDiscard() {
 void NewImage() {
     Canvas_CancelAll();
     g.img = Pixmap(g.newW, g.newH, 0xFFFFFFFFu);
+    ++g.imgVersion;
     g.filePath.clear();
     g.undo.clear();
     g.redo.clear();
@@ -458,6 +478,7 @@ bool OpenFile(const wstring& path) {
     }
     Canvas_CancelAll();
     g.img = std::move(p);
+    ++g.imgVersion;
     wchar_t full[MAX_PATH * 4] = {};
     if (GetFullPathNameW(path.c_str(), MAX_PATH * 4, full, nullptr)) g.filePath = full;
     else g.filePath = path;
@@ -506,7 +527,7 @@ void DoUndo() {
 
 void DoRedo() {
     if (Canvas_IsTextActive()) return;
-    Canvas_CancelAll();
+    if (Canvas_CancelAll()) return;
     if (g.redo.empty()) return;
     g.undo.push_back(std::move(g.img));
     g.img = std::move(g.redo.back());
@@ -668,7 +689,15 @@ void OnCommand(HWND hwnd, int id) {
 
     case ID_COLORS_EDIT: {
         COLORREF c = g.fg;
-        if (EditColor(hwnd, c)) SetColors(c, g.bg);
+        if (EditColor(hwnd, c)) {
+            // wie Paint: das Palettenfeld der aktuellen Farbe 1 wird mit geändert
+            for (auto& pc : g.palette)
+                if (pc == g.fg) {
+                    pc = c;
+                    break;
+                }
+            SetColors(c, g.bg);
+        }
         break;
     }
     case ID_COLORS_SWAP: SetColors(g.bg, g.fg); break;
@@ -746,8 +775,8 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_GETMINMAXINFO: {
         auto* mmi = reinterpret_cast<MINMAXINFO*>(lp);
-        mmi->ptMinTrackSize.x = S(480);
-        mmi->ptMinTrackSize.y = S(560);
+        mmi->ptMinTrackSize.x = S(500);
+        mmi->ptMinTrackSize.y = S(620);
         return 0;
     }
     case WM_DPICHANGED: {
@@ -789,6 +818,11 @@ LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CLOSE:
         if (ConfirmDiscard()) DestroyWindow(hwnd);
         return 0;
+    case WM_QUERYENDSESSION:
+        return ConfirmDiscard() ? TRUE : FALSE;
+    case WM_ENDSESSION:
+        if (wp) SaveSettings();
+        return 0;
     case WM_DESTROY:
         SaveSettings();
         PostQuitMessage(0);
@@ -817,6 +851,7 @@ void DropLastUndo() {
 }
 
 void MarkDirty() {
+    ++g.imgVersion;
     if (!g.dirty) {
         g.dirty = true;
         UpdateTitle();
@@ -966,8 +1001,27 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nShow) {
         return 1;
     }
 
+    // DPI des Startbildschirms bereits vor WM_GETMINMAXINFO kennen
+    {
+        POINT pt = {0, 0};
+        HMONITOR mon = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+        using Fn = HRESULT(WINAPI*)(HMONITOR, int, UINT*, UINT*);
+        HMODULE shcore = LoadLibraryW(L"shcore.dll");
+        Fn fn = shcore ? (Fn)(void*)GetProcAddress(shcore, "GetDpiForMonitor") : nullptr;
+        UINT dx = 96, dy = 96;
+        if (fn && SUCCEEDED(fn(mon, 0, &dx, &dy))) g.dpi = dx;
+        else g.dpi = QueryDpi(nullptr);
+    }
+    int initW = S(1100), initH = S(800);
+    {
+        RECT wa;
+        if (SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0)) {
+            initW = std::min<int>(initW, wa.right - wa.left);
+            initH = std::min<int>(initH, wa.bottom - wa.top);
+        }
+    }
     HWND hwnd = CreateWindowExW(WS_EX_ACCEPTFILES, kMainClass, kAppName, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
-                                CW_USEDEFAULT, CW_USEDEFAULT, 1100, 800, nullptr, nullptr, hInst, nullptr);
+                                CW_USEDEFAULT, CW_USEDEFAULT, initW, initH, nullptr, nullptr, hInst, nullptr);
     if (!hwnd) {
         MessageBoxW(nullptr, L"Das Hauptfenster konnte nicht erstellt werden.", kAppName, MB_ICONERROR);
         return 1;
@@ -981,6 +1035,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nShow) {
             WINDOWPLACEMENT wp = savedPlacement;
             if (nShow == SW_SHOWMINIMIZED || nShow == SW_MINIMIZE || nShow == SW_SHOWMINNOACTIVE)
                 wp.showCmd = SW_SHOWMINNOACTIVE;
+            // zweimal setzen: der erste Aufruf kann über WM_DPICHANGED die Größe skalieren
+            WINDOWPLACEMENT hidden = wp;
+            hidden.showCmd = SW_HIDE;
+            SetWindowPlacement(hwnd, &hidden);
             SetWindowPlacement(hwnd, &wp);
         } else {
             ShowWindow(hwnd, nShow);
