@@ -199,7 +199,7 @@ void DrawCellContent(Graphics& gr, const OptCell& c, bool selected) {
     case OK_ZOOM: {
         const wchar_t* t[5] = {L"1×", L"2×", L"4×", L"6×", L"8×"};
         FontFamily ff(L"Segoe UI");
-        Font f(&ff, SF(8.5f), FontStyleRegular, UnitPixel);
+        Font f(&ff, SF(11.0f), FontStyleRegular, UnitPixel);
         StringFormat sf;
         sf.SetAlignment(StringAlignmentCenter);
         sf.SetLineAlignment(StringAlignmentCenter);

@@ -40,6 +40,9 @@ jobs:
       - name: Oberflächentest
         shell: pwsh
         run: ./tests/smoke.ps1 -Exe build/Release/PaintClone.exe
+      - name: Oberflächentest der mitgelieferten bin/PaintClone.exe
+        shell: pwsh
+        run: ./tests/smoke.ps1 -Exe bin/PaintClone.exe
       - name: Bildschirmfotos veröffentlichen
         if: always()
         shell: pwsh

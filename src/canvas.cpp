@@ -918,6 +918,32 @@ void OnButtonDown(HWND hwnd, int button, POINT s, WPARAM wp) {
     case T_RECTSEL:
     case T_FREESEL: {
         int h = HitSelection(s);
+        if (h == 9 && button == 1) {
+            // Kontextmenü der Auswahl (wie Paint)
+            HMENU m = CreatePopupMenu();
+            AppendMenuW(m, MF_STRING, ID_EDIT_CUT, L"&Ausschneiden");
+            AppendMenuW(m, MF_STRING, ID_EDIT_COPY, L"&Kopieren");
+            AppendMenuW(m, MF_STRING | (ClipboardHasImage() ? 0 : MF_GRAYED), ID_EDIT_PASTE, L"&Einfügen");
+            AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+            AppendMenuW(m, MF_STRING, ID_EDIT_CLEARSEL, L"Auswahl &löschen");
+            AppendMenuW(m, MF_STRING, ID_EDIT_SELECTALL, L"Alles &markieren");
+            AppendMenuW(m, MF_STRING, ID_EDIT_COPYTO, L"Kopieren &nach...");
+            AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+            AppendMenuW(m, MF_STRING, ID_IMAGE_CROP, L"&Zuschneiden");
+            AppendMenuW(m, MF_STRING, ID_IMAGE_FLIPROTATE, L"&Spiegeln/Drehen...");
+            AppendMenuW(m, MF_STRING, ID_IMAGE_RESIZE, L"&Größe ändern/Zerren...");
+            AppendMenuW(m, MF_STRING, ID_IMAGE_INVERT, L"Farben &umkehren");
+            AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+            AppendMenuW(m, MF_STRING | (g.transparentSel ? 0 : MF_CHECKED), ID_IMAGE_OPAQUE,
+                        L"Undurchsichtig &zeichnen");
+            POINT sp = s;
+            ClientToScreen(hwnd, &sp);
+            drag = DragState();
+            int cmd = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON, sp.x, sp.y, 0, g.hMain, nullptr);
+            DestroyMenu(m);
+            if (cmd) SendMessageW(g.hMain, WM_COMMAND, cmd, 0);
+            return;
+        }
         if (h == 9) {
             if (!sel.floating) LiftSelection(ctrl);
             else if (ctrl) {
