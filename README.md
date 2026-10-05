@@ -6,6 +6,8 @@ Ein Malprogramm nach dem Vorbild von Microsoft Paint – als native **64-Bit-Win
 Die fertige Programmdatei liegt unter [`bin/PaintClone.exe`](bin/PaintClone.exe) und kann direkt gestartet werden
 (Windows 10/11, x64).
 
+![PaintClone](docs/screenshot.png)
+
 ## Funktionen
 
 **Werkzeuge** (Werkzeugleiste links, Optionen darunter)
@@ -23,6 +25,7 @@ Die fertige Programmdatei liegt unter [`bin/PaintClone.exe`](bin/PaintClone.exe)
 | Rechteck, Vieleck, Ellipse, abgerundetes Rechteck | Umriss / Umriss + Füllung / nur Füllung, 5 Linienbreiten |
 | Formen | 18 Formen (Dreiecke, Raute, Vielecke, Pfeile, Sterne, Herz, Blitz, Legenden, Kreuz) |
 
+Rechtsklick in eine Auswahl öffnet ein Kontextmenü (Ausschneiden, Kopieren, Zuschneiden, Drehen, Größe ändern …).
 Linke Maustaste zeichnet mit Farbe 1, rechte mit Farbe 2. Umschalttaste erzwingt Quadrate/Kreise bzw. 45°-Linien.
 Esc bricht den laufenden Vorgang ab, eine zweite Maustaste während des Ziehens ebenfalls (wie in Paint).
 
@@ -47,6 +50,8 @@ Farbfelder oder Taste X), Farbauswahldialog mit eigenen Farben, Standardpalette 
 Einstellungen (Fensterposition, Werkzeugoptionen, Schrift, Palette, zuletzt verwendete Bilder, Druckränder)
 werden in `%APPDATA%\PaintClone\PaintClone.ini` gespeichert. Hohe DPI-Werte und mehrere Monitore mit
 unterschiedlicher Skalierung werden unterstützt (Per-Monitor-V2).
+
+Sollte PaintClone abstürzen, schreibt es ein Protokoll nach `%LOCALAPPDATA%\PaintClone\Absturz.txt`.
 
 ## Tastenkombinationen
 
@@ -79,6 +84,14 @@ jeder Plattform:
 ```
 g++ -std=c++17 -Isrc tests/test_algo.cpp src/algo.cpp -o test_algo && ./test_algo
 ```
+
+## Automatische Tests
+
+Bei jedem Push baut GitHub Actions das Programm mit Visual Studio, führt die Algorithmus-Tests aus und startet
+anschließend einen Oberflächentest auf einem Windows-Rechner ([`tests/smoke.ps1`](tests/smoke.ps1)): Er zeichnet mit
+simulierter Maus und Tastatur mit allen Werkzeugen, öffnet die Dialoge, speichert und lädt ein Bild und prüft, dass
+das Programm nicht abstürzt – sowohl für den Visual-Studio-Build als auch für `bin/PaintClone.exe`. Wird der
+Workflow manuell mit der Option „Bildschirmfotos“ gestartet, landen die Bildschirmfotos im Zweig `ci-screens`.
 
 ## Aufbau
 
