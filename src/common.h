@@ -53,23 +53,8 @@ inline Gdiplus::Color GpColor(COLORREF c) {
     return Gdiplus::Color(255, GetRValue(c), GetGValue(c), GetBValue(c));
 }
 
-struct Pixmap {
-    int w = 0, h = 0;
-    std::vector<uint32_t> px;
-    Pixmap() {}
-    Pixmap(int W, int H, uint32_t fill = 0xFFFFFFFFu) : w(W), h(H), px((size_t)W * H, fill) {}
-    bool empty() const { return w <= 0 || h <= 0; }
-    bool in(int x, int y) const { return x >= 0 && y >= 0 && x < w && y < h; }
-    uint32_t& at(int x, int y) { return px[(size_t)y * w + x]; }
-    uint32_t at(int x, int y) const { return px[(size_t)y * w + x]; }
-    size_t bytes() const { return px.size() * sizeof(uint32_t); }
-    void fill(uint32_t c) { std::fill(px.begin(), px.end(), c); }
-};
+#include "algo.h"
 
-// Maximale Bildgröße (Pixelanzahl), um Speicherprobleme zu vermeiden
-constexpr long long MAX_PIXELS = 200LL * 1000 * 1000;
-constexpr int MAX_DIM = 50000;
-bool SizeAllowed(long long w, long long h);
 
 // ---------------------------------------------------------------------------
 // Werkzeuge und Optionen
@@ -98,7 +83,6 @@ enum ShapeKind {
 };
 
 enum FillStyle { FS_OUTLINE = 0, FS_BOTH = 1, FS_FILL = 2 };
-enum BrushShape { BR_CIRCLE = 0, BR_SQUARE = 1, BR_SLASH = 2, BR_BACKSLASH = 3 };
 
 extern const wchar_t* const kToolNames[T_COUNT];
 extern const wchar_t* const kToolHints[T_COUNT];
@@ -172,19 +156,7 @@ inline float SF(float v) { return v * (float)g.dpi / 96.0f; }
 // image.cpp
 // ---------------------------------------------------------------------------
 std::unique_ptr<Gdiplus::Bitmap> WrapBitmap(Pixmap& p);
-void MakeOpaque(Pixmap& p);
-Pixmap FlipH(const Pixmap& s);
-Pixmap FlipV(const Pixmap& s);
-Pixmap Rotate90(const Pixmap& s);
-Pixmap Rotate180(const Pixmap& s);
-Pixmap Rotate270(const Pixmap& s);
-void InvertColors(Pixmap& p);
 Pixmap ResizeHQ(const Pixmap& s, int nw, int nh);
-Pixmap Skew(const Pixmap& s, double degH, double degV, uint32_t bgpx);
-Pixmap ExtendCanvas(const Pixmap& s, int nw, int nh, uint32_t bgpx);
-Pixmap SubImage(const Pixmap& s, int x, int y, int w, int h, uint32_t outside);
-bool FloodFill(Pixmap& p, int x, int y, uint32_t color);
-std::vector<uint8_t> PolygonMask(const std::vector<POINT>& pts, int ox, int oy, int w, int h);
 void DrawPixmap(HDC hdc, const Pixmap& p, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, bool halftone);
 
 bool LoadImageFile(const wstring& path, Pixmap& out, wstring& err);
@@ -196,12 +168,6 @@ bool PastePixmapFromClipboard(HWND hwnd, Pixmap& out);
 // ---------------------------------------------------------------------------
 // shapes.cpp – Zeichenprimitive
 // ---------------------------------------------------------------------------
-void PutPixel(Pixmap& p, int x, int y, uint32_t c);
-void BresenhamLine(Pixmap& p, int x0, int y0, int x1, int y1, uint32_t c);
-std::vector<POINT> BrushOffsets(int shape, int size);
-void StampLine(Pixmap& p, POINT a, POINT b, const std::vector<POINT>& offs, uint32_t c);
-void EraseLine(Pixmap& p, POINT a, POINT b, int size, uint32_t bgpx);
-void ReplaceLine(Pixmap& p, POINT a, POINT b, int size, uint32_t from, uint32_t to);
 void DrawStraightLine(Pixmap& p, POINT a, POINT b, int width, COLORREF c, bool smooth);
 void DrawBezier(Pixmap& p, POINT p0, POINT c1, POINT c2, POINT p3, int width, COLORREF c, bool smooth);
 // Rechteck in Bildkoordinaten, inklusive Endpunkte
