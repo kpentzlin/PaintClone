@@ -1,6 +1,8 @@
 // PaintClone – Zeichenfläche: Darstellung, Zoom, Bildlauf und Werkzeuge
 #include "common.h"
 
+#include <climits>
+#include <initializer_list>
 #include <random>
 
 using namespace Gdiplus;
