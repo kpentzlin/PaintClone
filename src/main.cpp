@@ -1,7 +1,11 @@
 // PaintClone – Hauptfenster, Menübefehle, Einstellungen
 #include "common.h"
 
+#include <dbghelp.h>
 #include <shlwapi.h>
+
+#include <cstdio>
+#include <cstring>
 
 App g;
 
@@ -67,6 +71,106 @@ const size_t kUndoMaxBytes = (size_t)768 * 1024 * 1024;
 const int kMaxRecent = 9;
 
 wstring statusHint;
+
+// ---------------------------------------------------------------------------
+// Absturzprotokoll (%LOCALAPPDATA%\PaintClone\Absturz.txt)
+// ---------------------------------------------------------------------------
+wchar_t crashPath[MAX_PATH] = {};
+
+LONG CALLBACK CrashHandler(EXCEPTION_POINTERS* ep) {
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+    switch (code) {
+    case EXCEPTION_ACCESS_VIOLATION:
+    case EXCEPTION_STACK_OVERFLOW:
+    case EXCEPTION_INT_DIVIDE_BY_ZERO:
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+    case EXCEPTION_PRIV_INSTRUCTION:
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+    case 0xC0000374:  // Heap beschädigt
+    case 0xC0000409:  // Stack-Puffer-Überlauf
+        break;
+    default:
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    static volatile LONG once = 0;
+    if (InterlockedExchange(&once, 1) || !crashPath[0]) return EXCEPTION_CONTINUE_SEARCH;
+    HANDLE f = CreateFileW(crashPath, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return EXCEPTION_CONTINUE_SEARCH;
+    static char buf[1024];
+    DWORD written;
+    auto out = [&](const char* s) { WriteFile(f, s, (DWORD)strlen(s), &written, nullptr); };
+    auto modOffset = [&](DWORD64 a, char* dst, size_t n) {
+        HMODULE mod = nullptr;
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCWSTR)(ULONG_PTR)a, &mod);
+        char name[MAX_PATH] = "?";
+        if (mod) {
+            GetModuleFileNameA(mod, name, MAX_PATH);
+            const char* b = strrchr(name, '\\');
+            snprintf(dst, n, "%s+0x%llx", b ? b + 1 : name, (unsigned long long)(a - (DWORD64)(ULONG_PTR)mod));
+        } else {
+            snprintf(dst, n, "0x%llx", (unsigned long long)a);
+        }
+    };
+    char where[MAX_PATH + 64];
+    modOffset((DWORD64)(ULONG_PTR)ep->ExceptionRecord->ExceptionAddress, where, sizeof(where));
+    snprintf(buf, sizeof(buf), "PaintClone: Ausnahme 0x%08lX bei %s\r\n", (unsigned long)code, where);
+    out(buf);
+    if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2) {
+        snprintf(buf, sizeof(buf), "Zugriff (%s) auf Adresse 0x%llx\r\n",
+                 ep->ExceptionRecord->ExceptionInformation[0] ? "schreibend" : "lesend",
+                 (unsigned long long)ep->ExceptionRecord->ExceptionInformation[1]);
+        out(buf);
+    }
+#if defined(_M_X64) || defined(__x86_64__)
+    if (code != EXCEPTION_STACK_OVERFLOW) {
+        HANDLE proc = GetCurrentProcess();
+        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+        SymInitialize(proc, nullptr, TRUE);
+        CONTEXT ctx = *ep->ContextRecord;
+        STACKFRAME64 sf = {};
+        sf.AddrPC.Offset = ctx.Rip;
+        sf.AddrPC.Mode = AddrModeFlat;
+        sf.AddrFrame.Offset = ctx.Rbp;
+        sf.AddrFrame.Mode = AddrModeFlat;
+        sf.AddrStack.Offset = ctx.Rsp;
+        sf.AddrStack.Mode = AddrModeFlat;
+        static BYTE symBuf[sizeof(SYMBOL_INFO) + 256];
+        for (int i = 0; i < 48; ++i) {
+            if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, proc, GetCurrentThread(), &sf, &ctx, nullptr,
+                             SymFunctionTableAccess64, SymGetModuleBase64, nullptr) || !sf.AddrPC.Offset)
+                break;
+            modOffset(sf.AddrPC.Offset, where, sizeof(where));
+            auto* sym = reinterpret_cast<SYMBOL_INFO*>(symBuf);
+            memset(symBuf, 0, sizeof(symBuf));
+            sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+            sym->MaxNameLen = 255;
+            DWORD64 disp = 0;
+            const char* fn = SymFromAddr(proc, sf.AddrPC.Offset, &disp, sym) ? sym->Name : "";
+            IMAGEHLP_LINE64 line = {};
+            line.SizeOfStruct = sizeof(line);
+            DWORD ldisp = 0;
+            if (SymGetLineFromAddr64(proc, sf.AddrPC.Offset, &ldisp, &line))
+                snprintf(buf, sizeof(buf), "  #%d %s %s (%s:%lu)\r\n", i, where, fn, line.FileName,
+                         (unsigned long)line.LineNumber);
+            else
+                snprintf(buf, sizeof(buf), "  #%d %s %s\r\n", i, where, fn);
+            out(buf);
+        }
+    }
+#endif
+    CloseHandle(f);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void InstallCrashHandler() {
+    wchar_t local[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE, nullptr, 0, local))) return;
+    wstring dir = wstring(local) + L"\\PaintClone";
+    CreateDirectoryW(dir.c_str(), nullptr);
+    wcsncpy_s(crashPath, (dir + L"\\Absturz.txt").c_str(), _TRUNCATE);
+    AddVectoredExceptionHandler(1, CrashHandler);
+}
 
 // ---------------------------------------------------------------------------
 // DPI
@@ -971,6 +1075,7 @@ void ReplaceImage(Pixmap&& p) {
 // ---------------------------------------------------------------------------
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nShow) {
     g.hInst = hInst;
+    InstallCrashHandler();
     HRESULT hrCo = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
     INITCOMMONCONTROLSEX icc = {sizeof(icc), ICC_WIN95_CLASSES | ICC_BAR_CLASSES | ICC_STANDARD_CLASSES};

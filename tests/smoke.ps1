@@ -43,10 +43,18 @@ function Shot([string]$name) {
     Write-Output "Foto: $file"
 }
 
+$script:step = "Start"
+function Step([string]$s) { $script:step = $s; Write-Output "--- $s" }
+
 function Alive {
     if ($script:proc.HasExited) {
         Shot "absturz"
-        Write-Output "::error::PaintClone wurde unerwartet beendet (Exitcode $($script:proc.ExitCode))."
+        Write-Output "::error::PaintClone wurde im Schritt '$($script:step)' unerwartet beendet (Exitcode $($script:proc.ExitCode))."
+        $log = Join-Path $env:LOCALAPPDATA "PaintClone\Absturz.txt"
+        if (Test-Path $log) {
+            $lines = Get-Content $log
+            Write-Output "::error::$($lines -join ' | ')"
+        }
         exit 1
     }
 }
@@ -125,41 +133,61 @@ Write-Output "Fenster: '$([U]::Title($main))'  canvas=$($script:cv) toolbox=$($s
 Shot "start"
 
 # Stift
+Step "Stift"
+Alive
 Tool 6
 Drag $script:cv (Img 20) (Img 20) (Img 220) (Img 120)
 # Pinsel in Rot
+Step "Pinsel in Rot"
+Alive
 PaletteColor 16
 Tool 7
 Drag $script:cv (Img 20) (Img 140) (Img 220) (Img 160)
 # Ellipse (Umriss) in Blau
+Step "Ellipse (Umriss) in Blau"
+Alive
 PaletteColor 20
 Tool 14
 Drag $script:cv (Img 260) (Img 30) (Img 420) (Img 150)
 # Füllen in Gelb
+Step "Füllen in Gelb"
+Alive
 PaletteColor 17
 Tool 3
 Click $script:cv (Img 340) (Img 90)
 # Stern mit Füllung: Füllart "Umriss + Füllung" (zweite Option)
+Step "Stern mit Fuellung"
+Alive
 PaletteColor 0
 PaletteColor 18 -Right
 Tool 16
 Drag $script:cv (Img 450) (Img 30) (Img 590) (Img 160)
 # Rechteck nur Füllung mit rechter Taste
+Step "Rechteck nur Füllung mit rechter Taste"
+Alive
 Tool 12
 Drag $script:cv (Img 620) (Img 30) (Img 720) (Img 110) -Right
 # Linie mit Umschalt
+Step "Linie mit Umschalt"
+Alive
 Tool 10
 Drag $script:cv (Img 620) (Img 140) (Img 760) (Img 150)
 # Sprühdose
+Step "Sprühdose"
+Alive
 Tool 8
 Drag $script:cv (Img 30) (Img 190) (Img 200) (Img 230)
 # Vieleck: Ziehen, zwei Klicks, Doppelklick
+Step "Vieleck: Ziehen, zwei Klicks, Doppelklick"
+Alive
 Tool 13
 Drag $script:cv (Img 260) (Img 200) (Img 340) (Img 190)
 Click $script:cv (Img 380) (Img 260)
 Click $script:cv (Img 300) (Img 300)
 Click $script:cv (Img 260) (Img 200)
 # Kurve
+Step "Kurve"
+Alive
 Tool 11
 Drag $script:cv (Img 420) (Img 220) (Img 600) (Img 220)
 Drag $script:cv (Img 470) (Img 220) (Img 470) (Img 170)
@@ -168,6 +196,8 @@ Alive
 Shot "zeichnen"
 
 # Text
+Step "Text"
+Alive
 Tool 9
 Drag $script:cv (Img 30) (Img 320) (Img 330) (Img 360)
 Keys "Hallo PaintClone – äöüß"
@@ -176,6 +206,8 @@ Click $script:cv (Img 700) (Img 450)
 Alive
 
 # Auswahl verschieben und Farben umkehren
+Step "Auswahl verschieben und Farben umkehren"
+Alive
 Tool 1
 Drag $script:cv (Img 20) (Img 20) (Img 230) (Img 170)
 Drag $script:cv (Img 100) (Img 80) (Img 180) (Img 420)
@@ -186,6 +218,8 @@ Keys "{ESC}"
 Alive
 
 # Freihandauswahl, kopieren und einfügen
+Step "Freihandauswahl, kopieren und einfügen"
+Alive
 Tool 0
 Drag $script:cv (Img 450) (Img 30) (Img 600) (Img 170)
 Keys "^c"
@@ -196,6 +230,8 @@ Keys "{ESC}"
 Alive
 
 # Dialoge
+Step "Dialoge"
+Alive
 Keys "^w"
 Shot "dialog_groesse"
 Keys "{ESC}"
@@ -210,6 +246,8 @@ Keys "^z"
 Alive
 
 # Zoom und Gitternetz
+Step "Zoom und Gitternetz"
+Alive
 Keys "^{PGUP}"
 Keys "^{PGUP}"
 Keys "^{PGUP}"
@@ -218,12 +256,16 @@ Shot "zoom_400_gitter"
 Keys "^0"
 
 # Rückgängig mehrfach, dann wiederherstellen
+Step "Rückgängig mehrfach, dann wiederherstellen"
+Alive
 for ($i = 0; $i -lt 6; $i++) { Keys "^z" }
 Shot "rueckgaengig"
 for ($i = 0; $i -lt 6; $i++) { Keys "^y" }
 Alive
 
 # Speichern unter / Neu / Öffnen
+Step "Speichern unter / Neu / Öffnen"
+Alive
 $out = Join-Path $env:RUNNER_TEMP "smoke_test.png"
 if (Test-Path $out) { Remove-Item $out }
 Keys "{F12}"
@@ -246,12 +288,16 @@ Write-Output "Titel nach Öffnen: '$([U]::Title($main))'"
 Alive
 
 # Vollbild
+Step "Vollbild"
+Alive
 Keys "{F11}"
 Shot "vollbild"
 Keys "{ESC}"
 Alive
 
 # Beenden
+Step "Beenden"
+Alive
 [U]::SetForegroundWindow($main) | Out-Null
 Keys "%{F4}"
 Start-Sleep -Seconds 2

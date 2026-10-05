@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: ./tests/smoke.ps1 -Exe build/Release/PaintClone.exe
       - name: Bildschirmfotos veröffentlichen
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.screenshots
+        if: always()
         shell: pwsh
         run: |
           if (-not (Test-Path screens)) { exit 0 }

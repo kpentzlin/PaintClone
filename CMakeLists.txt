@@ -20,12 +20,12 @@ add_executable(PaintClone WIN32
 
 target_compile_definitions(PaintClone PRIVATE UNICODE _UNICODE NOMINMAX)
 target_link_libraries(PaintClone PRIVATE
-    gdiplus comctl32 comdlg32 gdi32 user32 shell32 shlwapi ole32 uuid advapi32)
+    gdiplus comctl32 comdlg32 gdi32 user32 shell32 shlwapi ole32 uuid advapi32 dbghelp)
 
 if(MSVC)
-    target_compile_options(PaintClone PRIVATE /utf-8 /W4 /permissive- /wd4100)
-    # Das Manifest ist bereits in PaintClone.rc eingebunden
-    target_link_options(PaintClone PRIVATE /MANIFEST:NO)
+    target_compile_options(PaintClone PRIVATE /utf-8 /W4 /permissive- /wd4100 /Zi)
+    # Das Manifest ist bereits in PaintClone.rc eingebunden; PDB für lesbare Absturzprotokolle
+    target_link_options(PaintClone PRIVATE /MANIFEST:NO /DEBUG /OPT:REF /OPT:ICF)
 else()
     target_compile_options(PaintClone PRIVATE -municode -Wall -Wextra -Wno-unused-parameter
                                               -Wno-missing-field-initializers)

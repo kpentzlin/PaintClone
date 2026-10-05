@@ -519,14 +519,17 @@ LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PT
         RemoveWindowSubclass(hwnd, EditSubclass, 1);
         return DefSubclassProc(hwnd, msg, wp, lp);
     }
-    if (!g.textOpaque) {
+    bool input = msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_CHAR || msg == WM_LBUTTONDOWN ||
+                 msg == WM_LBUTTONUP || msg == WM_LBUTTONDBLCLK || msg == WM_MOUSEMOVE;
+    if (!g.textOpaque && input) {
         // Im transparenten Modus löscht das EDIT seinen Hintergrund nicht selbst
-        // (z. B. beim Aufheben einer Markierung) – daher vollständig neu zeichnen.
+        // (z. B. beim Aufheben einer Markierung) – daher bei geänderter Markierung neu zeichnen.
+        // Wichtig: Abfrage über DefSubclassProc, nicht SendMessage (sonst Rekursion).
         DWORD s0 = 0, e0 = 0, s1 = 0, e1 = 0;
-        SendMessageW(hwnd, EM_GETSEL, (WPARAM)&s0, (LPARAM)&e0);
+        DefSubclassProc(hwnd, EM_GETSEL, (WPARAM)&s0, (LPARAM)&e0);
         LRESULT r = DefSubclassProc(hwnd, msg, wp, lp);
         if (IsWindow(hwnd)) {
-            SendMessageW(hwnd, EM_GETSEL, (WPARAM)&s1, (LPARAM)&e1);
+            DefSubclassProc(hwnd, EM_GETSEL, (WPARAM)&s1, (LPARAM)&e1);
             if (s0 != s1 || e0 != e1) InvalidateRect(hwnd, nullptr, TRUE);
         }
         return r;
