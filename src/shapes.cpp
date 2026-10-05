@@ -113,9 +113,9 @@ static std::vector<PointF> Arrow(int dir) {
 }
 
 void AddShapePath(GraphicsPath& path, int shape, RectF r) {
-    auto poly = [&](std::initializer_list<std::pair<float, float>> l) {
+    auto poly = [&](std::initializer_list<std::pair<double, double>> l) {
         std::vector<PointF> v;
-        for (auto& p : l) v.push_back(PointF(p.first, p.second));
+        for (auto& p : l) v.push_back(PointF((REAL)p.first, (REAL)p.second));
         AddNormalizedPolygon(path, v, r, false);
     };
     switch (shape) {

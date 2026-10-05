@@ -4,6 +4,14 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      screenshots:
+        description: "Bildschirmfotos des Oberflächentests in den Zweig ci-screens schreiben"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
 
 jobs:
   windows:
@@ -20,11 +28,29 @@ jobs:
           Get-Content build.log
           Select-String -Path build.log -Pattern ': (fatal )?error ' | Select-Object -First 40 |
             ForEach-Object { Write-Output "::error::$($_.Line.Trim())" }
-          Select-String -Path build.log -Pattern ': warning ' | Select-Object -Unique -First 40 |
+          Select-String -Path build.log -Pattern 'src\\.*: warning ' | Select-Object -First 30 |
             ForEach-Object { Write-Output "::warning::$($_.Line.Trim())" }
           exit $code
       - name: Tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Oberflächentest
+        shell: pwsh
+        run: ./tests/smoke.ps1 -Exe build/Release/PaintClone.exe
+      - name: Bildschirmfotos veröffentlichen
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.screenshots
+        shell: pwsh
+        run: |
+          if (-not (Test-Path screens)) { exit 0 }
+          Copy-Item -Recurse screens $env:RUNNER_TEMP\screens
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan ci-screens
+          git rm -rf --quiet .
+          Remove-Item -Recurse -Force build, screens -ErrorAction SilentlyContinue
+          Copy-Item $env:RUNNER_TEMP\screens\*.png .
+          git add *.png
+          git commit -m "Bildschirmfotos ${{ github.sha }}"
+          git push -f origin ci-screens
       - uses: actions/upload-artifact@v4
         with:
           name: PaintClone-x64
