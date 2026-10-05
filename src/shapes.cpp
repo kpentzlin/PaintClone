@@ -4,7 +4,7 @@
 using namespace Gdiplus;
 
 static void PrepareGraphics(Graphics& gr, bool smooth) {
-    gr.SetSmoothingMode(smooth ? SmoothingModeAntiAlias8x8 : SmoothingModeNone);
+    gr.SetSmoothingMode(smooth ? SmoothingModeAntiAlias : SmoothingModeNone);
     gr.SetPixelOffsetMode(PixelOffsetModeNone);
     gr.SetCompositingQuality(CompositingQualityHighQuality);
 }
