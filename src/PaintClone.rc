@@ -1,0 +1,258 @@
+// PaintClone – Ressourcen
+#pragma code_page(65001)
+
+#include <windows.h>
+#include <commctrl.h>
+#include "resource.h"
+
+LANGUAGE LANG_GERMAN, SUBLANG_GERMAN
+
+IDI_APP ICON "PaintClone.ico"
+
+1 24 "PaintClone.manifest"
+
+// ---------------------------------------------------------------------------
+// Menü
+// ---------------------------------------------------------------------------
+IDR_MENU MENU
+BEGIN
+    POPUP "&Datei"
+    BEGIN
+        MENUITEM "&Neu\tStrg+N",                     ID_FILE_NEW
+        MENUITEM "Ö&ffnen...\tStrg+O",               ID_FILE_OPEN
+        MENUITEM "&Speichern\tStrg+S",               ID_FILE_SAVE
+        MENUITEM "Speichern &unter...\tF12",         ID_FILE_SAVEAS
+        MENUITEM SEPARATOR
+        POPUP "&Zuletzt verwendete Bilder"
+        BEGIN
+            MENUITEM "(keine)",                      ID_FILE_RECENT_NONE, GRAYED
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "Seite ein&richten...",             ID_FILE_PAGESETUP
+        MENUITEM "&Drucken...\tStrg+P",              ID_FILE_PRINT
+        MENUITEM SEPARATOR
+        POPUP "Als &Desktophintergrund"
+        BEGIN
+            MENUITEM "&Füllen",                      ID_FILE_WP_FILL
+            MENUITEM "&Kacheln",                     ID_FILE_WP_TILE
+            MENUITEM "&Zentrieren",                  ID_FILE_WP_CENTER
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "&Beenden\tAlt+F4",                 ID_FILE_EXIT
+    END
+    POPUP "&Bearbeiten"
+    BEGIN
+        MENUITEM "&Rückgängig\tStrg+Z",              ID_EDIT_UNDO
+        MENUITEM "&Wiederholen\tStrg+Y",             ID_EDIT_REDO
+        MENUITEM SEPARATOR
+        MENUITEM "&Ausschneiden\tStrg+X",            ID_EDIT_CUT
+        MENUITEM "&Kopieren\tStrg+C",                ID_EDIT_COPY
+        MENUITEM "&Einfügen\tStrg+V",                ID_EDIT_PASTE
+        MENUITEM "Auswahl &löschen\tEntf",           ID_EDIT_CLEARSEL
+        MENUITEM "Alles &markieren\tStrg+A",         ID_EDIT_SELECTALL
+        MENUITEM SEPARATOR
+        MENUITEM "Kopieren &nach...",                ID_EDIT_COPYTO
+        MENUITEM "Einfügen a&us...",                 ID_EDIT_PASTEFROM
+    END
+    POPUP "&Ansicht"
+    BEGIN
+        MENUITEM "&Werkzeugleiste\tStrg+T",          ID_VIEW_TOOLBOX
+        MENUITEM "&Farbpalette\tStrg+L",             ID_VIEW_PALETTE
+        MENUITEM "&Statusleiste",                    ID_VIEW_STATUS
+        MENUITEM "&Textsymbolleiste",                ID_VIEW_TEXTBAR
+        MENUITEM SEPARATOR
+        POPUP "&Zoom"
+        BEGIN
+            MENUITEM "&Vergrößern\tStrg+Bild auf",   ID_VIEW_ZOOMIN
+            MENUITEM "Ver&kleinern\tStrg+Bild ab",   ID_VIEW_ZOOMOUT
+            MENUITEM "&100 %\tStrg+0",               ID_VIEW_ZOOM100
+            MENUITEM "An &Fenster anpassen",         ID_VIEW_ZOOMFIT
+            MENUITEM SEPARATOR
+            MENUITEM "&Gitternetz anzeigen\tStrg+G", ID_VIEW_GRID
+        END
+        MENUITEM "&Vollbild\tF11",                   ID_VIEW_FULLSCREEN
+        MENUITEM SEPARATOR
+        MENUITEM "Formen und Linien &glätten",       ID_VIEW_SMOOTH
+    END
+    POPUP "B&ild"
+    BEGIN
+        MENUITEM "&Spiegeln/Drehen...\tStrg+R",      ID_IMAGE_FLIPROTATE
+        POPUP "&Drehen und spiegeln"
+        BEGIN
+            MENUITEM "Um 90° nach &rechts drehen",   ID_IMAGE_ROT90
+            MENUITEM "Um 90° nach &links drehen",    ID_IMAGE_ROT270
+            MENUITEM "Um &180° drehen",              ID_IMAGE_ROT180
+            MENUITEM SEPARATOR
+            MENUITEM "&Horizontal spiegeln",         ID_IMAGE_FLIPH
+            MENUITEM "&Vertikal spiegeln",           ID_IMAGE_FLIPV
+        END
+        MENUITEM "&Größe ändern/Zerren...\tStrg+W",  ID_IMAGE_RESIZE
+        MENUITEM "&Zuschneiden\tStrg+Umschalt+X",    ID_IMAGE_CROP
+        MENUITEM "Farben &umkehren\tStrg+I",         ID_IMAGE_INVERT
+        MENUITEM "&Attribute...\tStrg+E",            ID_IMAGE_ATTRIBUTES
+        MENUITEM "Bild &löschen\tStrg+Umschalt+N",   ID_IMAGE_CLEAR
+        MENUITEM SEPARATOR
+        MENUITEM "&Undurchsichtig zeichnen",         ID_IMAGE_OPAQUE
+    END
+    POPUP "&Farben"
+    BEGIN
+        MENUITEM "Farben &bearbeiten...",            ID_COLORS_EDIT
+        MENUITEM "Farbe 1 und 2 &tauschen\tX",       ID_COLORS_SWAP
+        MENUITEM SEPARATOR
+        MENUITEM "&Standardpalette wiederherstellen", ID_COLORS_RESET
+    END
+    POPUP "&?"
+    BEGIN
+        MENUITEM "&Info über PaintClone",            ID_HELP_ABOUT
+    END
+END
+
+// ---------------------------------------------------------------------------
+// Tastenkombinationen
+// ---------------------------------------------------------------------------
+IDR_ACCEL ACCELERATORS
+BEGIN
+    "N",        ID_FILE_NEW,          VIRTKEY, CONTROL
+    "O",        ID_FILE_OPEN,         VIRTKEY, CONTROL
+    "S",        ID_FILE_SAVE,         VIRTKEY, CONTROL
+    VK_F12,     ID_FILE_SAVEAS,       VIRTKEY
+    "P",        ID_FILE_PRINT,        VIRTKEY, CONTROL
+    "Z",        ID_EDIT_UNDO,         VIRTKEY, CONTROL
+    VK_BACK,    ID_EDIT_UNDO,         VIRTKEY, ALT
+    "Y",        ID_EDIT_REDO,         VIRTKEY, CONTROL
+    "X",        ID_EDIT_CUT,          VIRTKEY, CONTROL
+    VK_DELETE,  ID_EDIT_CUT,          VIRTKEY, SHIFT
+    "C",        ID_EDIT_COPY,         VIRTKEY, CONTROL
+    VK_INSERT,  ID_EDIT_COPY,         VIRTKEY, CONTROL
+    "V",        ID_EDIT_PASTE,        VIRTKEY, CONTROL
+    VK_INSERT,  ID_EDIT_PASTE,        VIRTKEY, SHIFT
+    VK_DELETE,  ID_EDIT_CLEARSEL,     VIRTKEY
+    "A",        ID_EDIT_SELECTALL,    VIRTKEY, CONTROL
+    "T",        ID_VIEW_TOOLBOX,      VIRTKEY, CONTROL
+    "L",        ID_VIEW_PALETTE,      VIRTKEY, CONTROL
+    VK_PRIOR,   ID_VIEW_ZOOMIN,       VIRTKEY, CONTROL
+    VK_NEXT,    ID_VIEW_ZOOMOUT,      VIRTKEY, CONTROL
+    VK_ADD,     ID_VIEW_ZOOMIN,       VIRTKEY, CONTROL
+    VK_SUBTRACT, ID_VIEW_ZOOMOUT,     VIRTKEY, CONTROL
+    VK_OEM_PLUS, ID_VIEW_ZOOMIN,      VIRTKEY, CONTROL
+    VK_OEM_MINUS, ID_VIEW_ZOOMOUT,    VIRTKEY, CONTROL
+    "0",        ID_VIEW_ZOOM100,      VIRTKEY, CONTROL
+    VK_NUMPAD0, ID_VIEW_ZOOM100,      VIRTKEY, CONTROL
+    "G",        ID_VIEW_GRID,         VIRTKEY, CONTROL
+    VK_F11,     ID_VIEW_FULLSCREEN,   VIRTKEY
+    "R",        ID_IMAGE_FLIPROTATE,  VIRTKEY, CONTROL
+    "W",        ID_IMAGE_RESIZE,      VIRTKEY, CONTROL
+    "X",        ID_IMAGE_CROP,        VIRTKEY, CONTROL, SHIFT
+    "I",        ID_IMAGE_INVERT,      VIRTKEY, CONTROL
+    "E",        ID_IMAGE_ATTRIBUTES,  VIRTKEY, CONTROL
+    "N",        ID_IMAGE_CLEAR,       VIRTKEY, CONTROL, SHIFT
+    "X",        ID_COLORS_SWAP,       VIRTKEY
+    VK_F1,      ID_HELP_ABOUT,        VIRTKEY
+END
+
+// ---------------------------------------------------------------------------
+// Dialoge
+// ---------------------------------------------------------------------------
+IDD_RESIZE DIALOGEX 0, 0, 232, 207
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Größe ändern und zerren"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Größe ändern", -1, 7, 7, 218, 92
+    LTEXT           "Nach:", -1, 15, 22, 30, 9
+    AUTORADIOBUTTON "&Prozent", IDC_RS_PERCENT, 52, 21, 60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Pi&xel", IDC_RS_PIXELS, 120, 21, 60, 10
+    LTEXT           "&Horizontal:", -1, 15, 41, 60, 9, WS_GROUP
+    EDITTEXT        IDC_RS_H, 80, 39, 60, 13, ES_AUTOHSCROLL
+    LTEXT           "&Vertikal:", -1, 15, 59, 60, 9
+    EDITTEXT        IDC_RS_V, 80, 57, 60, 13, ES_AUTOHSCROLL
+    AUTOCHECKBOX    "&Seitenverhältnis beibehalten", IDC_RS_KEEP, 15, 79, 200, 10, WS_TABSTOP
+    GROUPBOX        "Neigen (Grad)", -1, 7, 105, 218, 62
+    LTEXT           "H&orizontal:", -1, 15, 121, 60, 9
+    EDITTEXT        IDC_SK_H, 80, 119, 60, 13, ES_AUTOHSCROLL
+    LTEXT           "V&ertikal:", -1, 15, 139, 60, 9
+    EDITTEXT        IDC_SK_V, 80, 137, 60, 13, ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK", IDOK, 118, 182, 50, 14
+    PUSHBUTTON      "Abbrechen", IDCANCEL, 175, 182, 50, 14
+END
+
+IDD_ATTRIB DIALOGEX 0, 0, 260, 160
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Attribute"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "Datei:", -1, 7, 7, 80, 9
+    LTEXT           "", IDC_AT_FILE, 90, 7, 163, 9, SS_PATHELLIPSIS
+    LTEXT           "Zuletzt gespeichert:", -1, 7, 20, 80, 9
+    LTEXT           "", IDC_AT_SAVED, 90, 20, 163, 9
+    LTEXT           "Größe auf Datenträger:", -1, 7, 33, 80, 9
+    LTEXT           "", IDC_AT_DISK, 90, 33, 163, 9
+    LTEXT           "Auflösung:", -1, 7, 46, 80, 9
+    LTEXT           "", IDC_AT_RES, 90, 46, 163, 9
+    GROUPBOX        "Einheiten", -1, 7, 62, 246, 30
+    AUTORADIOBUTTON "&Zoll", IDC_AT_INCH, 15, 75, 60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "&Zentimeter", IDC_AT_CM, 80, 75, 70, 10
+    AUTORADIOBUTTON "&Pixel", IDC_AT_PX, 160, 75, 60, 10
+    LTEXT           "&Breite:", -1, 7, 104, 40, 9, WS_GROUP
+    EDITTEXT        IDC_AT_W, 50, 102, 60, 13, ES_AUTOHSCROLL
+    LTEXT           "&Höhe:", -1, 125, 104, 30, 9
+    EDITTEXT        IDC_AT_H, 160, 102, 60, 13, ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK", IDOK, 146, 138, 50, 14
+    PUSHBUTTON      "Abbrechen", IDCANCEL, 203, 138, 50, 14
+END
+
+IDD_FLIPROTATE DIALOGEX 0, 0, 200, 140
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Spiegeln und drehen"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Spiegeln oder drehen", -1, 7, 7, 186, 104
+    AUTORADIOBUTTON "&Horizontal spiegeln", IDC_FR_FLIPH, 15, 22, 150, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "&Vertikal spiegeln", IDC_FR_FLIPV, 15, 36, 150, 10
+    AUTORADIOBUTTON "&Drehen um Winkel", IDC_FR_ROTATE, 15, 50, 150, 10
+    AUTORADIOBUTTON "&90°", IDC_FR_90, 35, 66, 60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "&180°", IDC_FR_180, 35, 79, 60, 10
+    AUTORADIOBUTTON "&270°", IDC_FR_270, 35, 92, 60, 10
+    DEFPUSHBUTTON   "OK", IDOK, 86, 119, 50, 14, WS_GROUP
+    PUSHBUTTON      "Abbrechen", IDCANCEL, 143, 119, 50, 14
+END
+
+IDD_ABOUT DIALOGEX 0, 0, 250, 124
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Info über PaintClone"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    CONTROL         "", IDC_AB_ICON, "Static", SS_ICON | SS_REALSIZEIMAGE, 10, 10, 32, 32
+    LTEXT           "", IDC_AB_TEXT, 50, 10, 193, 88
+    DEFPUSHBUTTON   "OK", IDOK, 193, 103, 50, 14
+END
+
+// ---------------------------------------------------------------------------
+// Versionsinformationen
+// ---------------------------------------------------------------------------
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040704b0"
+        BEGIN
+            VALUE "FileDescription", "PaintClone – Malprogramm"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "PaintClone"
+            VALUE "OriginalFilename", "PaintClone.exe"
+            VALUE "ProductName", "PaintClone"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x407, 1200
+    END
+END

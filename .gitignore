@@ -1,0 +1,9 @@
+build/
+out/
+.vs/
+*.obj
+*.res
+*.pdb
+*.ilk
+*.user
+*.~pctmp
